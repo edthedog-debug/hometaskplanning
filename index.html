@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Home Chores — Weekly 30-Min Scheduler</title>
+  <style>
+    :root {
+      --bg: #f8fafc;
+      --surface: #ffffff;
+      --border: #e2e8f0;
+      --text: #0f172a;
+      --muted: #64748b;
+      --primary: #2563eb;
+      --primary-hover: #1d4ed8;
+      --radius: 10px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background: var(--bg); color: var(--text); padding: 16px; max-width: 1440px; margin: 0 auto; }
+
+    header {
+      display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center;
+      gap: 12px; margin-bottom: 20px; background: var(--surface); padding: 16px 20px;
+      border-radius: var(--radius); border: 1px solid var(--border);
+    }
+    header h1 { font-size: 1.35rem; font-weight: 700; }
+    header p { font-size: 0.85rem; color: var(--muted); }
+
+    .header-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    button {
+      cursor: pointer; border: 1px solid var(--border); background: var(--surface);
+      color: var(--text); padding: 8px 14px; border-radius: 8px; font-size: 0.85rem;
+      font-weight: 600; transition: all 0.15s;
+    }
+    button:hover { background: #f1f5f9; }
+    button.primary { background: var(--primary); color: #fff; border-color: var(--primary); }
+    button.primary:hover { background: var(--primary-hover); }
+    button.danger { color: #dc2626; border-color: #fecaca; background: #fef2f2; }
+
+    .status-badge {
+      font-size: 0.78rem; padding: 4px 10px; border-radius: 999px;
+      background: #e0f2fe; color: #0369a1; font-weight: 600;
+    }
+    .status-badge.syncing { background: #fef3c7; color: #b45309; }
+    .status-badge.error { background: #fee2e2; color: #b91c1c; }
+
+    /* Analytics / Percentages Dashboard */
+    .analytics-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 16px; margin-bottom: 20px;
+    }
+    .card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 16px 20px;
+    }
+    .card h2 { font-size: 1rem; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; }
+    .card h2 span { font-size: 0.8rem; color: var(--muted); font-weight: 500; }
+
+    .stat-row { margin-bottom: 12px; }
+    .stat-header { display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 4px; font-weight: 600; }
+    .progress-bar {
+      width: 100%; height: 10px; background: #e2e8f0; border-radius: 999px; overflow: hidden; display: flex;
+    }
+    .progress-segment { height: 100%; transition: width 0.3s ease; }
+
+    .task-breakdown-item {
+      border-top: 1px solid var(--border); padding: 10px 0;
+    }
+    .task-breakdown-item:first-child { border-top: none; padding-top: 0; }
+    .task-title-row { display: flex; justify-content: space-between; font-size: 0.85rem; font-weight: 600; margin-bottom: 6px; }
+    .user-pills { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+    .user-pill {
+      font-size: 0.75rem; padding: 2px 8px; border-radius: 6px; color: #fff; font-weight: 600;
+    }
+
+    /* Quick Paint Mode Bar */
+    .toolbar {
+      display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 12px 16px; margin-bottom: 16px;
+    }
+    .toolbar label { font-size: 0.8rem; font-weight: 600; color: var(--muted); }
+    select, input[type="text"], input[type="color"] {
+      padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.85rem;
+    }
+
+    /* Weekly Grid */
+    .table-wrapper {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); overflow-x: auto; max-height: 72vh;
+    }
+    table { width: 100%; border-collapse: collapse; min-width: 860px; }
+    th, td { border: 1px solid var(--border); text-align: center; font-size: 0.8rem; }
+    thead th {
+      position: sticky; top: 0; background: #f1f5f9; z-index: 10;
+      padding: 10px 6px; font-weight: 700; color: var(--text);
+    }
+    td.time-col {
+      position: sticky; left: 0; background: #f8fafc; z-index: 5;
+      font-weight: 600; color: var(--muted); width: 76px; padding: 6px;
+    }
+    td.slot {
+      height: 36px; cursor: pointer; padding: 3px 5px; transition: background 0.1s;
+      vertical-align: middle; min-width: 110px;
+    }
+    td.slot:hover { background: #eff6ff; outline: 1px solid var(--primary); }
+    .slot-badge {
+      display: flex; flex-direction: column; justify-content: center;
+      border-radius: 6px; padding: 3px 6px; color: #fff; font-size: 0.74rem;
+      line-height: 1.2; text-align: left; box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+    }
+    .slot-user { font-weight: 700; }
+    .slot-task { opacity: 0.95; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 120px; }
+
+    /* Modals */
+    .modal-backdrop {
+      display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.5);
+      z-index: 50; justify-content: center; align-items: center; padding: 16px;
+    }
+    .modal-backdrop.open { display: flex; }
+    .modal {
+      background: var(--surface); border-radius: var(--radius); width: 100%; max-width: 440px;
+      padding: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+    }
+    .modal h3 { margin-bottom: 14px; font-size: 1.1rem; }
+    .form-group { margin-bottom: 12px; }
+    .form-group label { display: block; font-size: 0.82rem; font-weight: 600; margin-bottom: 4px; }
+    .form-group select, .form-group input { width: 100%; }
+    .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+
+    .config-list { max-height: 150px; overflow-y: auto; border: 1px solid var(--border); border-radius: 6px; padding: 6px; margin-top: 8px; }
+    .config-item { display: flex; justify-content: space-between; align-items: center; padding: 4px 6px; font-size: 0.85rem; border-bottom: 1px solid #f1f5f9; }
+    .config-item:last-child { border-bottom: none; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div>
+      <h1>🏠 Home Chores Weekly Scheduler</h1>
+      <p>30-minute intervals · Synced live with Google Sheets</p>
+    </div>
+    <div class="header-actions">
+      <span id="syncStatus" class="status-badge">Loading...</span>
+      <button onclick="fetchData()">↻ Refresh</button>
+      <button onclick="openConfigModal()">⚙️ Manage Users & Tasks</button>
+    </div>
+  </header>
+
+  <!-- Analytics Section: Total Share & Per-Task User Usage -->
+  <section class="analytics-grid">
+    <div class="card">
+      <h2>📊 Total Workload Share <span id="totalHoursLabel">0 hrs scheduled</span></h2>
+      <div id="totalUserStats"></div>
+    </div>
+
+    <div class="card">
+      <h2>🧹 Task Distribution by User <span>(% of each task)</span></h2>
+      <div id="perTaskStats"></div>
+    </div>
+  </section>
+
+  <!-- Quick Assign Toolbar -->
+  <div class="toolbar">
+    <label>⚡ Quick-Tap Mode:</label>
+    <select id="quickModeToggle">
+      <option value="modal">Open Edit Dialog on Click</option>
+      <option value="paint">One-Tap Assign Selected Below</option>
+      <option value="clear">One-Tap Clear Slot</option>
+    </select>
+    <select id="quickUser"></select>
+    <select id="quickTask"></select>
+  </div>
+
+  <!-- Weekly 30-Min Schedule Table -->
+  <div class="table-wrapper">
+    <table id="scheduleTable">
+      <thead>
+        <tr>
+          <th>Time</th>
+          <th>Monday</th>
+          <th>Tuesday</th>
+          <th>Wednesday</th>
+          <th>Thursday</th>
+          <th>Friday</th>
+          <th>Saturday</th>
+          <th>Sunday</th>
+        </tr>
+      </thead>
+      <tbody id="scheduleBody"></tbody>
+    </table>
+  </div>
+
+  <!-- Slot Assignment / Redistribution Modal -->
+  <div id="slotModal" class="modal-backdrop">
+    <div class="modal">
+      <h3 id="modalTitle">Assign Chore</h3>
+      <div class="form-group">
+        <label for="modalUser">User</label>
+        <select id="modalUser"></select>
+      </div>
+      <div class="form-group">
+        <label for="modalTask">Household Chore</label>
+        <select id="modalTask"></select>
+      </div>
+      <div class="modal-actions">
+        <button class="danger" onclick="clearCurrentSlot()">Clear Slot</button>
+        <button onclick="closeSlotModal()">Cancel</button>
+        <button class="primary" onclick="saveCurrentSlot()">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Manage Users & Tasks Modal -->
+  <div id="configModal" class="modal-backdrop">
+    <div class="modal">
+      <h3>⚙️ Manage Users & Chores</h3>
+      
+      <div class="form-group">
+        <label>Add Household Member</label>
+        <div style="display:flex; gap:6px;">
+          <input type="text" id="newUserName" placeholder="e.g. Alex" />
+          <input type="color" id="newUserColor" value="#3b82f6" style="width:46px; padding:2px;" />
+          <button class="primary" onclick="addConfigItem('USER')">Add</button>
+        </div>
+        <div id="userList" class="config-list"></div>
+      </div>
+
+      <div class="form-group" style="margin-top:16px;">
+        <label>Add Household Chore</label>
+        <div style="display:flex; gap:6px;">
+          <input type="text" id="newTaskName" placeholder="e.g. Walk the Dog" />
+          <input type="color" id="newTaskColor" value="#10b981" style="width:46px; padding:2px;" />
+          <button class="primary" onclick="addConfigItem('TASK')">Add</button>
+        </div>
+        <div id="taskList" class="config-list"></div>
+      </div>
+
+      <div class="modal-actions">
+        <button onclick="closeConfigModal()">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Google Apps Script Web App URL
+    const API_URL = "https://script.google.com/macros/s/AKfycby4t-EXZ4qaUc1jyOYvvdQAoX8rT1C-QTYsQcFMtwqfkiyqxHVwfIibxEl2Roy2SsV9Wg/exec";
+
+    const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+    const START_HOUR = 7;  // 07:00
+    const END_HOUR = 24;   // up to 23:30
+
+    let state = {
+      schedule: {}, // { "Monday_08:00": { day, time, user, task } }
+      users: [],    // [ { name, color } ]
+      tasks: []     // [ { name, color } ]
+    };
+
+    let activeSlot = null;
+
+    // Generate 30-minute time slots
+    function generateTimeSlots() {
+      const slots = [];
+      for (let h = START_HOUR; h < END_HOUR; h++) {
+        const hh = String(h).padStart(2, "0");
+        slots.push(`${hh}:00`);
+        slots.push(`${hh}:30`);
+      }
+      return slots;
+    }
+
+    const TIME_SLOTS = generateTimeSlots();
+
+    function setStatus(text, type = "ok") {
+      const el = document.getElementById("syncStatus");
+      el.textContent = text;
+      el.className = "status-badge" + (type !== "ok" ? ` ${type}` : "");
+    }
+
+    // Fetch schedule & config from Google Sheets
+    async function fetchData() {
+      setStatus("Syncing...", "syncing");
+      try {
+        const res = await fetch(API_URL);
+        const data = await res.json();
+        if (data.status === "ok") {
+          state.schedule = data.schedule || {};
+          state.users = data.users || [];
+          state.tasks = data.tasks || [];
+          populateDropdowns();
+          renderGrid();
+          renderAnalytics();
+          setStatus("Synced with Sheets");
+        }
+      } catch (err) {
+        console.error(err);
+        setStatus("Sync Error", "error");
+      }
+    }
+
+    // Send update to Google Sheets
+    async function postAction(payload) {
+      setStatus("Saving...", "syncing");
+      try {
+        await fetch(API_URL, {
+          method: "POST",
+          mode: "no-cors", // Required for Google Apps Script cross-origin POST
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        setStatus("Saved");
+      } catch (err) {
+        console.error(err);
+        setStatus("Save Error", "error");
+      }
+    }
+
+    function getUserColor(userName) {
+      const found = state.users.find(u => u.name === userName);
+      return found ? found.color : "#475569";
+    }
+
+    function getTaskColor(taskName) {
+      const found = state.tasks.find(t => t.name === taskName);
+      return found ? found.color : "#64748b";
+    }
+
+    function populateDropdowns() {
+      const userHTML = state.users.map(u => `<option value="${u.name}">${u.name}</option>`).join("");
+      const taskHTML = state.tasks.map(t => `<option value="${t.name}">${t.name}</option>`).join("");
+
+      document.getElementById("quickUser").innerHTML = userHTML;
+      document.getElementById("modalUser").innerHTML = userHTML;
+      document.getElementById("quickTask").innerHTML = taskHTML;
+      document.getElementById("modalTask").innerHTML = taskHTML;
+
+      // Config Lists
+      document.getElementById("userList").innerHTML = state.users.map(u => `
+        <div class="config-item">
+          <span><strong style="color:${u.color}">●</strong> ${u.name}</span>
+          <button class="danger" style="padding:2px 8px; font-size:0.75rem;" onclick="deleteConfigItem('USER', '${u.name}')">Remove</button>
+        </div>
+      `).join("");
+
+      document.getElementById("taskList").innerHTML = state.tasks.map(t => `
+        <div class="config-item">
+          <span><strong style="color:${t.color}">●</strong> ${t.name}</span>
+          <button class="danger" style="padding:2px 8px; font-size:0.75rem;" onclick="deleteConfigItem('TASK', '${t.name}')">Remove</button>
+        </div>
+      `).join("");
+    }
+
+    function renderGrid() {
+      const tbody = document.getElementById("scheduleBody");
+      tbody.innerHTML = "";
+
+      TIME_SLOTS.forEach(time => {
+        const tr = document.createElement("tr");
+        const timeTd = document.createElement("td");
+        timeTd.className = "time-col";
+        timeTd.textContent = time;
+        tr.appendChild(timeTd);
+
+        DAYS.forEach(day => {
+          const slotId = `${day}_${time}`;
+          const td = document.createElement("td");
+          td.className = "slot";
+          td.onclick = () => handleSlotClick(slotId, day, time);
+
+          const entry = state.schedule[slotId];
+          if (entry && entry.user && entry.task) {
+            const bg = getUserColor(entry.user);
+            td.innerHTML = `
+              <div class="slot-badge" style="background:${bg}">
+                <span class="slot-user">${entry.user}</span>
+                <span class="slot-task">${entry.task}</span>
+              </div>
+            `;
+          }
+          tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+      });
+    }
+
+    function handleSlotClick(slotId, day, time) {
+      const mode = document.getElementById("quickModeToggle").value;
+
+      if (mode === "paint") {
+        const user = document.getElementById("quickUser").value;
+        const task = document.getElementById("quickTask").value;
+        if (!user || !task) return alert("Please add at least one user and one task first.");
+        updateSlot(slotId, day, time, user, task);
+      } else if (mode === "clear") {
+        updateSlot(slotId, day, time, "", "");
+      } else {
+        activeSlot = { slotId, day, time };
+        document.getElementById("modalTitle").textContent = `${day} at ${time}`;
+        const existing = state.schedule[slotId];
+        if (existing) {
+          document.getElementById("modalUser").value = existing.user;
+          document.getElementById("modalTask").value = existing.task;
+        }
+        document.getElementById("slotModal").classList.add("open");
+      }
+    }
+
+    function closeSlotModal() {
+      document.getElementById("slotModal").classList.remove("open");
+      activeSlot = null;
+    }
+
+    function saveCurrentSlot() {
+      if (!activeSlot) return;
+      const user = document.getElementById("modalUser").value;
+      const task = document.getElementById("modalTask").value;
+      updateSlot(activeSlot.slotId, activeSlot.day, activeSlot.time, user, task);
+      closeSlotModal();
+    }
+
+    function clearCurrentSlot() {
+      if (!activeSlot) return;
+      updateSlot(activeSlot.slotId, activeSlot.day, activeSlot.time, "", "");
+      closeSlotModal();
+    }
+
+    async function updateSlot(slotId, day, time, user, task) {
+      if (!user || !task) {
+        delete state.schedule[slotId];
+      } else {
+        state.schedule[slotId] = { day, time, user, task };
+      }
+      renderGrid();
+      renderAnalytics();
+      await postAction({ action: "UPSERT_SLOT", slotId, day, time, user, task });
+    }
+
+    // Analytics Calculation: Global User % + Per-Task User Usage %
+    function renderAnalytics() {
+      const entries = Object.values(state.schedule).filter(e => e.user && e.task);
+      const totalSlots = entries.length;
+      const totalHours = (totalSlots * 0.5).toFixed(1);
+      document.getElementById("totalHoursLabel").textContent = `${totalHours} hrs (${totalSlots} slots)`;
+
+      // 1. Total Share by User
+      const totalUserContainer = document.getElementById("totalUserStats");
+      if (totalSlots === 0) {
+        totalUserContainer.innerHTML = `<p style="color:var(--muted); font-size:0.85rem;">No chores scheduled yet. Click any 30-min slot to assign.</p>`;
+      } else {
+        const userCounts = {};
+        state.users.forEach(u => userCounts[u.name] = 0);
+        entries.forEach(e => { userCounts[e.user] = (userCounts[e.user] || 0) + 1; });
+
+        totalUserContainer.innerHTML = Object.entries(userCounts).map(([user, count]) => {
+          const pct = ((count / totalSlots) * 100).toFixed(1);
+          const hrs = (count * 0.5).toFixed(1);
+          const color = getUserColor(user);
+          return `
+            <div class="stat-row">
+              <div class="stat-header">
+                <span>${user}</span>
+                <span>${pct}% (${hrs}h)</span>
+              </div>
+              <div class="progress-bar">
+                <div class="progress-segment" style="width:${pct}%; background:${color};"></div>
+              </div>
+            </div>
+          `;
+        }).join("");
+      }
+
+      // 2. Per-Task Breakdown by User
+      const perTaskContainer = document.getElementById("perTaskStats");
+      const taskGroups = {};
+      entries.forEach(e => {
+        if (!taskGroups[e.task]) taskGroups[e.task] = { total: 0, byUser: {} };
+        taskGroups[e.task].total += 1;
+        taskGroups[e.task].byUser[e.user] = (taskGroups[e.task].byUser[e.user] || 0) + 1;
+      });
+
+      const taskNames = Object.keys(taskGroups);
+      if (taskNames.length === 0) {
+        perTaskContainer.innerHTML = `<p style="color:var(--muted); font-size:0.85rem;">Task percentages will appear once slots are assigned.</p>`;
+      } else {
+        perTaskContainer.innerHTML = taskNames.map(taskName => {
+          const group = taskGroups[taskName];
+          const taskShareOfAll = ((group.total / totalSlots) * 100).toFixed(1);
+          const taskHrs = (group.total * 0.5).toFixed(1);
+
+          const segments = Object.entries(group.byUser).map(([user, count]) => {
+            const userTaskPct = ((count / group.total) * 100).toFixed(1);
+            return `<div class="progress-segment" style="width:${userTaskPct}%; background:${getUserColor(user)};" title="${user}: ${userTaskPct}%"></div>`;
+          }).join("");
+
+          const pills = Object.entries(group.byUser).map(([user, count]) => {
+            const userTaskPct = ((count / group.total) * 100).toFixed(0);
+            return `<span class="user-pill" style="background:${getUserColor(user)}">${user}: ${userTaskPct}%</span>`;
+          }).join("");
+
+          return `
+            <div class="task-breakdown-item">
+              <div class="task-title-row">
+                <span>${taskName}</span>
+                <span style="color:var(--muted); font-weight:500;">${taskHrs}h (${taskShareOfAll}% of total)</span>
+              </div>
+              <div class="progress-bar">${segments}</div>
+              <div class="user-pills">${pills}</div>
+            </div>
+          `;
+        }).join("");
+      }
+    }
+
+    // Config Modal Handlers
+    function openConfigModal() { document.getElementById("configModal").classList.add("open"); }
+    function closeConfigModal() { document.getElementById("configModal").classList.remove("open"); }
+
+    async function addConfigItem(type) {
+      const nameInput = document.getElementById(type === "USER" ? "newUserName" : "newTaskName");
+      const colorInput = document.getElementById(type === "USER" ? "newUserColor" : "newTaskColor");
+      const value = nameInput.value.trim();
+      const color = colorInput.value;
+      if (!value) return;
+
+      if (type === "USER") state.users.push({ name: value, color });
+      else state.tasks.push({ name: value, color });
+
+      nameInput.value = "";
+      populateDropdowns();
+      renderAnalytics();
+      await postAction({ action: "ADD_CONFIG", type, value, color });
+    }
+
+    async function deleteConfigItem(type, value) {
+      if (type === "USER") state.users = state.users.filter(u => u.name !== value);
+      else state.tasks = state.tasks.filter(t => t.name !== value);
+
+      populateDropdowns();
+      renderGrid();
+      renderAnalytics();
+      await postAction({ action: "DELETE_CONFIG", type, value });
+    }
+
+    // Initialize on load
+    fetchData();
+  </script>
+</body>
+</html>
